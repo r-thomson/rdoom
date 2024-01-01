@@ -1,0 +1,4 @@
+.nova/
+*.rs.bk
+debug/
+target/
