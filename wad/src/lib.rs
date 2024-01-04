@@ -30,8 +30,8 @@ impl TryFrom<&[u8; 4]> for WadType {
 }
 
 pub struct WadDirectoryEntry {
-	pub offset_bytes: usize,
-	pub size_bytes: usize,
+	pub offset_bytes: i32,
+	pub size_bytes: i32,
 	pub lump_name: [u8; 8],
 }
 
@@ -47,7 +47,7 @@ mod tests {
 	use super::*;
 
 	#[test]
-	fn wad_type_from_magic_number_returns_correct_variant() {
+	fn wad_type_from_identifier_returns_correct_variant() {
 		let result = WadType::try_from(b"IWAD");
 		assert_eq!(result.unwrap(), WadType::IWAD);
 
