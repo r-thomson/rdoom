@@ -3,6 +3,7 @@ use std::io::prelude::*;
 use std::io::SeekFrom;
 
 /// Where's All the Data?
+#[derive(Debug)]
 pub struct Wad {
 	file: File,
 	pub header: WadHeader,
@@ -10,7 +11,7 @@ pub struct Wad {
 }
 
 impl Wad {
-	pub fn new(mut file: File) -> Result<Wad, ()> {
+	pub fn new(mut file: File) -> Result<Self, ()> {
 		let Ok(_) = file.seek(SeekFrom::Start(0)) else {
 			return Err(());
 		};
@@ -24,7 +25,22 @@ impl Wad {
 			return Err(());
 		};
 
-		let directory = vec![];
+		let mut directory: Vec<WadDirectoryEntry> = Vec::with_capacity(header.num_lumps as usize);
+
+		let Ok(_) = file.seek(SeekFrom::Start(header.directory_offset_bytes as u64)) else {
+			return Err(());
+		};
+
+		let mut directory_buf = [0; 16];
+		for _ in 0..header.num_lumps {
+			let Ok(_) = file.read_exact(&mut directory_buf) else {
+				return Err(());
+			};
+			let Ok(dir_entry) = WadDirectoryEntry::new(directory_buf) else {
+				return Err(());
+			};
+			directory.push(dir_entry);
+		}
 
 		Ok(Wad {
 			file,
@@ -34,6 +50,7 @@ impl Wad {
 	}
 }
 
+#[derive(Debug)]
 pub struct WadHeader {
 	pub iwad_or_pwad: WadType,
 	pub num_lumps: i32,
@@ -41,7 +58,7 @@ pub struct WadHeader {
 }
 
 impl WadHeader {
-	fn new(data: [u8; 12]) -> Result<WadHeader, ()> {
+	fn new(data: [u8; 12]) -> Result<Self, ()> {
 		Ok(WadHeader {
 			iwad_or_pwad: WadType::try_from(<[u8; 4]>::try_from(&data[0..4]).unwrap())?,
 			num_lumps: i32::from_le_bytes(data[4..8].try_into().unwrap()),
@@ -69,6 +86,7 @@ impl TryFrom<[u8; 4]> for WadType {
 	}
 }
 
+#[derive(Debug)]
 pub struct WadDirectoryEntry {
 	pub offset_bytes: i32,
 	pub size_bytes: i32,
@@ -76,6 +94,14 @@ pub struct WadDirectoryEntry {
 }
 
 impl WadDirectoryEntry {
+	pub fn new(data: [u8; 16]) -> Result<Self, ()> {
+		Ok(WadDirectoryEntry {
+			offset_bytes: i32::from_le_bytes(data[0..4].try_into().unwrap()),
+			size_bytes: i32::from_le_bytes(data[4..8].try_into().unwrap()),
+			lump_name: data[8..16].try_into().unwrap(),
+		})
+	}
+
 	/// Virtual lumps have a size of zero and only appear in the directory
 	pub fn is_virtual(&self) -> bool {
 		self.size_bytes == 0
@@ -98,6 +124,20 @@ mod tests {
 		assert_eq!(header.iwad_or_pwad, WadType::PWAD);
 		assert_eq!(header.num_lumps, 42);
 		assert_eq!(header.directory_offset_bytes, 1024);
+	}
+
+	#[test]
+	fn wad_directory_entry_from_bytes() {
+		let mut bytes = [0u8; 16];
+		bytes[0..4].clone_from_slice(&42i32.to_le_bytes()[..]);
+		bytes[4..8].clone_from_slice(&1024i32.to_le_bytes()[..]);
+		bytes[8..16].clone_from_slice(b"COLORMAP");
+
+		let dir_entry = WadDirectoryEntry::new(bytes).unwrap();
+
+		assert_eq!(dir_entry.offset_bytes, 42);
+		assert_eq!(dir_entry.size_bytes, 1024);
+		assert_eq!(dir_entry.lump_name, *b"COLORMAP");
 	}
 
 	#[test]
