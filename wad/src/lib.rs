@@ -1,3 +1,4 @@
+use std::any::type_name;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::SeekFrom;
@@ -139,7 +140,7 @@ impl ToString for WadString {
 			.map_while(|byte| match byte {
 				0 => None,
 				1..=128 => Some(*byte as char),
-				_ => panic!("Invalid (non-ASCII) character in DoomString"),
+				_ => panic!("Invalid (non-ASCII) character in {}", type_name::<Self>()),
 			})
 			.collect::<String>()
 	}
