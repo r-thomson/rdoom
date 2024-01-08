@@ -106,6 +106,18 @@ impl WadDirectoryEntry {
 	pub fn is_virtual(&self) -> bool {
 		self.size_bytes == 0
 	}
+
+	/// Read the contents of a lump into a buffer. The buffer's size must equal `size_bytes`.
+	pub fn read_lump(&self, buf: &mut [u8], wadfile: &Wad) -> std::io::Result<()> {
+		assert!(buf.len() == self.size_bytes as usize);
+
+		let mut file = &wadfile.file;
+
+		file.seek(SeekFrom::Start(self.offset_bytes as u64))?;
+		file.read_exact(buf)?;
+
+		Ok(())
+	}
 }
 
 #[cfg(test)]
