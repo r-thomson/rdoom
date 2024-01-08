@@ -90,7 +90,7 @@ impl TryFrom<[u8; 4]> for WadType {
 pub struct WadDirectoryEntry {
 	pub offset_bytes: i32,
 	pub size_bytes: i32,
-	pub lump_name: [u8; 8],
+	pub lump_name: WadString,
 }
 
 impl WadDirectoryEntry {
@@ -98,7 +98,7 @@ impl WadDirectoryEntry {
 		Ok(WadDirectoryEntry {
 			offset_bytes: i32::from_le_bytes(data[0..4].try_into().unwrap()),
 			size_bytes: i32::from_le_bytes(data[4..8].try_into().unwrap()),
-			lump_name: data[8..16].try_into().unwrap(),
+			lump_name: WadString::new(data[8..16].try_into().unwrap()),
 		})
 	}
 
@@ -117,6 +117,31 @@ impl WadDirectoryEntry {
 		file.read_exact(buf)?;
 
 		Ok(())
+	}
+}
+
+#[derive(Debug, PartialEq)]
+pub struct WadString {
+	bytes: [u8; 8],
+}
+
+impl WadString {
+	pub fn new(bytes: [u8; 8]) -> WadString {
+		// TODO validate all chars are in ASCII range
+		WadString { bytes }
+	}
+}
+
+impl ToString for WadString {
+	fn to_string(&self) -> String {
+		self.bytes
+			.iter()
+			.map_while(|byte| match byte {
+				0 => None,
+				1..=128 => Some(*byte as char),
+				_ => panic!("Invalid (non-ASCII) character in DoomString"),
+			})
+			.collect::<String>()
 	}
 }
 
@@ -149,7 +174,7 @@ mod tests {
 
 		assert_eq!(dir_entry.offset_bytes, 42);
 		assert_eq!(dir_entry.size_bytes, 1024);
-		assert_eq!(dir_entry.lump_name, *b"COLORMAP");
+		assert_eq!(dir_entry.lump_name, WadString::new(*b"COLORMAP"));
 	}
 
 	#[test]
@@ -169,14 +194,14 @@ mod tests {
 		let nonvirtual_entry = WadDirectoryEntry {
 			offset_bytes: 12,
 			size_bytes: 10_752,
-			lump_name: b"PLAYPAL\0".to_owned(),
+			lump_name: WadString::new(*b"PLAYPAL\0"),
 		};
 		assert!(!nonvirtual_entry.is_virtual());
 
 		let virtual_entry = WadDirectoryEntry {
 			offset_bytes: 0,
 			size_bytes: 0,
-			lump_name: b"S_START\0".to_owned(),
+			lump_name: WadString::new(*b"S_START\0"),
 		};
 		assert!(virtual_entry.is_virtual());
 	}
