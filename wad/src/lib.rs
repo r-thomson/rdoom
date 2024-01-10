@@ -1,4 +1,5 @@
 use std::any::type_name;
+use std::fmt::Display;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::SeekFrom;
@@ -139,8 +140,8 @@ impl WadString {
 	}
 }
 
-impl ToString for WadString {
-	fn to_string(&self) -> String {
+impl Display for WadString {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		self.bytes
 			.iter()
 			.map_while(|byte| match byte {
@@ -149,6 +150,7 @@ impl ToString for WadString {
 				_ => panic!("Invalid (non-ASCII) character in {}", type_name::<Self>()),
 			})
 			.collect::<String>()
+			.fmt(f)
 	}
 }
 
@@ -211,5 +213,14 @@ mod tests {
 			lump_name: WadString::new(*b"S_START\0").unwrap(),
 		};
 		assert!(virtual_entry.is_virtual());
+	}
+
+	#[test]
+	fn test_wad_string_display() {
+		let wad_str = WadString::new(*b"COLORMAP").unwrap();
+		assert_eq!(format!("{}", wad_str), "COLORMAP");
+
+		let wad_str = WadString::new(*b"DEMO1\0\0\0").unwrap();
+		assert_eq!(format!("{}", wad_str), "DEMO1");
 	}
 }
