@@ -99,7 +99,7 @@ impl WadDirectoryEntry {
 		Ok(WadDirectoryEntry {
 			offset_bytes: i32::from_le_bytes(data[0..4].try_into().unwrap()),
 			size_bytes: i32::from_le_bytes(data[4..8].try_into().unwrap()),
-			lump_name: WadString::new(data[8..16].try_into().unwrap()),
+			lump_name: WadString::new(data[8..16].try_into().unwrap()).unwrap(),
 		})
 	}
 
@@ -121,15 +121,21 @@ impl WadDirectoryEntry {
 	}
 }
 
+/// The string format used for the name of lumps. It is an 8-byte long ASCII
+/// string, right-padded with null bytes.
 #[derive(Debug, PartialEq)]
 pub struct WadString {
 	bytes: [u8; 8],
 }
 
 impl WadString {
-	pub fn new(bytes: [u8; 8]) -> WadString {
-		// TODO validate all chars are in ASCII range
-		WadString { bytes }
+	pub fn new(bytes: [u8; 8]) -> Result<WadString, ()> {
+		// Check for non-ASCII characters
+		if bytes.iter().any(|byte| *byte > 127) {
+			return Err(());
+		}
+
+		Ok(WadString { bytes })
 	}
 }
 
@@ -138,8 +144,8 @@ impl ToString for WadString {
 		self.bytes
 			.iter()
 			.map_while(|byte| match byte {
-				0 => None,
-				1..=128 => Some(*byte as char),
+				0 => None, // end of string
+				1..=127 => Some(*byte as char),
 				_ => panic!("Invalid (non-ASCII) character in {}", type_name::<Self>()),
 			})
 			.collect::<String>()
@@ -175,7 +181,7 @@ mod tests {
 
 		assert_eq!(dir_entry.offset_bytes, 42);
 		assert_eq!(dir_entry.size_bytes, 1024);
-		assert_eq!(dir_entry.lump_name, WadString::new(*b"COLORMAP"));
+		assert_eq!(dir_entry.lump_name, WadString::new(*b"COLORMAP").unwrap());
 	}
 
 	#[test]
@@ -195,14 +201,14 @@ mod tests {
 		let nonvirtual_entry = WadDirectoryEntry {
 			offset_bytes: 12,
 			size_bytes: 10_752,
-			lump_name: WadString::new(*b"PLAYPAL\0"),
+			lump_name: WadString::new(*b"PLAYPAL\0").unwrap(),
 		};
 		assert!(!nonvirtual_entry.is_virtual());
 
 		let virtual_entry = WadDirectoryEntry {
 			offset_bytes: 0,
 			size_bytes: 0,
-			lump_name: WadString::new(*b"S_START\0"),
+			lump_name: WadString::new(*b"S_START\0").unwrap(),
 		};
 		assert!(virtual_entry.is_virtual());
 	}
