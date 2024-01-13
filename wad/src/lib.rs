@@ -14,35 +14,23 @@ pub struct Wad {
 
 impl Wad {
 	pub fn new(mut file: File) -> Result<Self, ()> {
-		let Ok(_) = file.seek(SeekFrom::Start(0)) else {
-			return Err(());
-		};
+		let mut header_buf = [0; WadHeader::SIZE_BYTES];
+		file.seek(SeekFrom::Start(0))
+			.and_then(|_| file.read_exact(&mut header_buf))
+			.map_err(|_| ())?;
 
-		let mut header_buf = [0; 12];
-		let Ok(_) = file.read_exact(&mut header_buf) else {
-			return Err(());
-		};
+		let header = WadHeader::new(header_buf)?;
 
-		let Ok(header) = WadHeader::new(header_buf) else {
-			return Err(());
-		};
+		let mut directory_buf = vec![0; header.num_lumps as usize * WadDirectoryEntry::SIZE_BYTES];
+		file.seek(SeekFrom::Start(header.directory_offset_bytes as u64))
+			.and_then(|_| file.read_exact(&mut directory_buf))
+			.map_err(|_| ())?;
 
-		let mut directory: Vec<WadDirectoryEntry> = Vec::with_capacity(header.num_lumps as usize);
-
-		let Ok(_) = file.seek(SeekFrom::Start(header.directory_offset_bytes as u64)) else {
-			return Err(());
-		};
-
-		let mut directory_buf = [0; 16];
-		for _ in 0..header.num_lumps {
-			let Ok(_) = file.read_exact(&mut directory_buf) else {
-				return Err(());
-			};
-			let Ok(dir_entry) = WadDirectoryEntry::new(directory_buf) else {
-				return Err(());
-			};
-			directory.push(dir_entry);
-		}
+		let directory: Vec<WadDirectoryEntry> = directory_buf
+			.chunks(WadDirectoryEntry::SIZE_BYTES)
+			.map(|chunk| chunk.try_into().unwrap())
+			.map(WadDirectoryEntry::new)
+			.collect::<Result<_, _>>()?;
 
 		Ok(Wad {
 			file,
@@ -60,9 +48,11 @@ pub struct WadHeader {
 }
 
 impl WadHeader {
+	pub const SIZE_BYTES: usize = 12;
+
 	fn new(data: [u8; 12]) -> Result<Self, ()> {
 		Ok(WadHeader {
-			iwad_or_pwad: WadType::try_from(<[u8; 4]>::try_from(&data[0..4]).unwrap())?,
+			iwad_or_pwad: WadType::new(data[0..4].try_into().unwrap())?,
 			num_lumps: i32::from_le_bytes(data[4..8].try_into().unwrap()),
 			directory_offset_bytes: i32::from_le_bytes(data[8..12].try_into().unwrap()),
 		})
@@ -76,11 +66,11 @@ pub enum WadType {
 	PWAD,
 }
 
-impl TryFrom<[u8; 4]> for WadType {
-	type Error = ();
+impl WadType {
+	pub const SIZE_BYTES: usize = 4;
 
-	fn try_from(value: [u8; 4]) -> Result<Self, Self::Error> {
-		match &value {
+	pub fn new(data: [u8; Self::SIZE_BYTES]) -> Result<Self, ()> {
+		match &data {
 			b"IWAD" => Ok(Self::IWAD),
 			b"PWAD" => Ok(Self::PWAD),
 			_ => Err(()),
@@ -96,7 +86,9 @@ pub struct WadDirectoryEntry {
 }
 
 impl WadDirectoryEntry {
-	pub fn new(data: [u8; 16]) -> Result<Self, ()> {
+	pub const SIZE_BYTES: usize = 16;
+
+	pub fn new(data: [u8; Self::SIZE_BYTES]) -> Result<Self, ()> {
 		Ok(WadDirectoryEntry {
 			offset_bytes: i32::from_le_bytes(data[0..4].try_into().unwrap()),
 			size_bytes: i32::from_le_bytes(data[4..8].try_into().unwrap()),
@@ -130,7 +122,9 @@ pub struct WadString {
 }
 
 impl WadString {
-	pub fn new(bytes: [u8; 8]) -> Result<WadString, ()> {
+	pub const SIZE_BYTES: usize = 8;
+
+	pub fn new(bytes: [u8; Self::SIZE_BYTES]) -> Result<WadString, ()> {
 		// Check for non-ASCII characters
 		if bytes.iter().any(|byte| *byte > 127) {
 			return Err(());
@@ -188,13 +182,13 @@ mod tests {
 
 	#[test]
 	fn wad_type_from_identifier_returns_correct_variant() {
-		let result = WadType::try_from(*b"IWAD");
+		let result = WadType::new(*b"IWAD");
 		assert_eq!(result.unwrap(), WadType::IWAD);
 
-		let result = WadType::try_from(*b"PWAD");
+		let result = WadType::new(*b"PWAD");
 		assert_eq!(result.unwrap(), WadType::PWAD);
 
-		let result = WadType::try_from(*b"ZWAD");
+		let result = WadType::new(*b"ZWAD");
 		result.unwrap_err(); // Panic on Ok
 	}
 
