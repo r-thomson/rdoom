@@ -1,5 +1,5 @@
 use std::any::type_name;
-use std::fmt::Display;
+use std::fmt;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::SeekFrom;
@@ -114,8 +114,14 @@ impl WadDirectoryEntry {
 	}
 }
 
-/// The string format used for the name of lumps. It is an 8-byte long ASCII
+/// The string format used for the name of lumps. It is an 8-byte-long ASCII
 /// string, right-padded with null bytes.
+///
+/// ```
+/// # use wad::WadString;
+/// let wad_str = WadString::new(*b"PLAYPAL\0").unwrap();
+/// assert_eq!(wad_str.to_string(), "PLAYPAL");
+/// ```
 #[derive(Debug, PartialEq)]
 pub struct WadString {
 	bytes: [u8; 8],
@@ -134,7 +140,7 @@ impl WadString {
 	}
 }
 
-impl Display for WadString {
+impl fmt::Display for WadString {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		self.bytes
 			.iter()
@@ -210,7 +216,17 @@ mod tests {
 	}
 
 	#[test]
-	fn test_wad_string_display() {
+	fn wad_string_new_returns_ok_result() {
+		WadString::new(*b"MYSTRING").unwrap();
+	}
+
+	#[test]
+	fn wad_string_new_returns_err_on_invalid_ascii() {
+		WadString::new(*b"INVALID\x80").unwrap_err();
+	}
+
+	#[test]
+	fn wad_string_display() {
 		let wad_str = WadString::new(*b"COLORMAP").unwrap();
 		assert_eq!(format!("{}", wad_str), "COLORMAP");
 
