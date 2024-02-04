@@ -19,7 +19,7 @@ impl Wad {
 			.and_then(|_| file.read_exact(&mut header_buf))
 			.map_err(|_| ())?;
 
-		let header = WadHeader::new(header_buf)?;
+		let header = WadHeader::from_bytes(header_buf)?;
 
 		let mut directory_buf = vec![0; header.num_lumps as usize * WadDirectoryEntry::SIZE_BYTES];
 		file.seek(SeekFrom::Start(header.directory_offset_bytes as u64))
@@ -29,7 +29,7 @@ impl Wad {
 		let directory: Vec<WadDirectoryEntry> = directory_buf
 			.chunks(WadDirectoryEntry::SIZE_BYTES)
 			.map(|chunk| chunk.try_into().unwrap())
-			.map(WadDirectoryEntry::new)
+			.map(WadDirectoryEntry::from_bytes)
 			.collect::<Result<_, _>>()?;
 
 		Ok(Wad {
@@ -50,7 +50,7 @@ pub struct WadHeader {
 impl WadHeader {
 	pub const SIZE_BYTES: usize = 12;
 
-	fn new(data: [u8; 12]) -> Result<Self, ()> {
+	fn from_bytes(data: [u8; 12]) -> Result<Self, ()> {
 		Ok(WadHeader {
 			iwad_or_pwad: WadType::new(data[0..4].try_into().unwrap())?,
 			num_lumps: i32::from_le_bytes(data[4..8].try_into().unwrap()),
@@ -69,8 +69,8 @@ pub enum WadType {
 impl WadType {
 	pub const SIZE_BYTES: usize = 4;
 
-	pub fn new(data: [u8; Self::SIZE_BYTES]) -> Result<Self, ()> {
-		match &data {
+	pub fn new(from_bytes: [u8; Self::SIZE_BYTES]) -> Result<Self, ()> {
+		match &from_bytes {
 			b"IWAD" => Ok(Self::IWAD),
 			b"PWAD" => Ok(Self::PWAD),
 			_ => Err(()),
@@ -88,11 +88,11 @@ pub struct WadDirectoryEntry {
 impl WadDirectoryEntry {
 	pub const SIZE_BYTES: usize = 16;
 
-	pub fn new(data: [u8; Self::SIZE_BYTES]) -> Result<Self, ()> {
+	pub fn from_bytes(data: [u8; Self::SIZE_BYTES]) -> Result<Self, ()> {
 		Ok(WadDirectoryEntry {
 			offset_bytes: i32::from_le_bytes(data[0..4].try_into().unwrap()),
 			size_bytes: i32::from_le_bytes(data[4..8].try_into().unwrap()),
-			lump_name: WadString::new(data[8..16].try_into().unwrap()).unwrap(),
+			lump_name: WadString::from_bytes(data[8..16].try_into().unwrap())?,
 		})
 	}
 
@@ -119,7 +119,7 @@ impl WadDirectoryEntry {
 ///
 /// ```
 /// # use wad::WadString;
-/// let wad_str = WadString::new(*b"PLAYPAL\0").unwrap();
+/// let wad_str = WadString::from_bytes(*b"PLAYPAL\0").unwrap();
 /// assert_eq!(wad_str.to_string(), "PLAYPAL");
 /// ```
 #[derive(Debug, PartialEq)]
@@ -130,7 +130,7 @@ pub struct WadString {
 impl WadString {
 	pub const SIZE_BYTES: usize = 8;
 
-	pub fn new(bytes: [u8; Self::SIZE_BYTES]) -> Result<WadString, ()> {
+	pub fn from_bytes(bytes: [u8; Self::SIZE_BYTES]) -> Result<WadString, ()> {
 		// Check for non-ASCII characters
 		if bytes.iter().any(|byte| *byte > 127) {
 			return Err(());
@@ -165,7 +165,7 @@ mod tests {
 		bytes[4..8].clone_from_slice(&42i32.to_le_bytes()[..]);
 		bytes[8..12].clone_from_slice(&1024i32.to_le_bytes()[..]);
 
-		let header = WadHeader::new(bytes).unwrap();
+		let header = WadHeader::from_bytes(bytes).unwrap();
 
 		assert_eq!(header.iwad_or_pwad, WadType::PWAD);
 		assert_eq!(header.num_lumps, 42);
@@ -179,15 +179,18 @@ mod tests {
 		bytes[4..8].clone_from_slice(&1024i32.to_le_bytes()[..]);
 		bytes[8..16].clone_from_slice(b"COLORMAP");
 
-		let dir_entry = WadDirectoryEntry::new(bytes).unwrap();
+		let dir_entry = WadDirectoryEntry::from_bytes(bytes).unwrap();
 
 		assert_eq!(dir_entry.offset_bytes, 42);
 		assert_eq!(dir_entry.size_bytes, 1024);
-		assert_eq!(dir_entry.lump_name, WadString::new(*b"COLORMAP").unwrap());
+		assert_eq!(
+			dir_entry.lump_name,
+			WadString::from_bytes(*b"COLORMAP").unwrap()
+		);
 	}
 
 	#[test]
-	fn wad_type_from_identifier_returns_correct_variant() {
+	fn wad_type_from_bytes_returns_correct_variant() {
 		let result = WadType::new(*b"IWAD");
 		assert_eq!(result.unwrap(), WadType::IWAD);
 
@@ -203,34 +206,34 @@ mod tests {
 		let nonvirtual_entry = WadDirectoryEntry {
 			offset_bytes: 12,
 			size_bytes: 10_752,
-			lump_name: WadString::new(*b"PLAYPAL\0").unwrap(),
+			lump_name: WadString::from_bytes(*b"PLAYPAL\0").unwrap(),
 		};
 		assert!(!nonvirtual_entry.is_virtual());
 
 		let virtual_entry = WadDirectoryEntry {
 			offset_bytes: 0,
 			size_bytes: 0,
-			lump_name: WadString::new(*b"S_START\0").unwrap(),
+			lump_name: WadString::from_bytes(*b"S_START\0").unwrap(),
 		};
 		assert!(virtual_entry.is_virtual());
 	}
 
 	#[test]
-	fn wad_string_new_returns_ok_result() {
-		WadString::new(*b"MYSTRING").unwrap();
+	fn wad_string_from_bytes_returns_ok() {
+		WadString::from_bytes(*b"MYSTRING").unwrap();
 	}
 
 	#[test]
-	fn wad_string_new_returns_err_on_invalid_ascii() {
-		WadString::new(*b"INVALID\x80").unwrap_err();
+	fn wad_string_from_bytes_returns_err_on_invalid_ascii() {
+		WadString::from_bytes(*b"INVALID\x80").unwrap_err();
 	}
 
 	#[test]
 	fn wad_string_display() {
-		let wad_str = WadString::new(*b"COLORMAP").unwrap();
+		let wad_str = WadString::from_bytes(*b"COLORMAP").unwrap();
 		assert_eq!(format!("{}", wad_str), "COLORMAP");
 
-		let wad_str = WadString::new(*b"DEMO1\0\0\0").unwrap();
+		let wad_str = WadString::from_bytes(*b"DEMO1\0\0\0").unwrap();
 		assert_eq!(format!("{}", wad_str), "DEMO1");
 	}
 }
