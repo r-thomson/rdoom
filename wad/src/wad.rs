@@ -154,6 +154,12 @@ impl fmt::Display for WadString {
 	}
 }
 
+impl PartialEq<&str> for WadString {
+	fn eq(&self, other: &&str) -> bool {
+		self.to_string() == *other
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
