@@ -1,3 +1,5 @@
+use std::path::Iter;
+
 pub struct PlaypalLump {
 	pub palettes: Vec<playpal::Palette>,
 }
@@ -90,6 +92,97 @@ impl ColormapLump {
 		Ok(Self {
 			maps: chunks.try_into().unwrap(),
 		})
+	}
+}
+
+pub struct TexturesLump {
+	pub num_textures: i32,
+	pub offsets: Vec<i32>,
+	pub textures: Vec<textures::TexEntry>,
+}
+
+impl TexturesLump {
+	pub fn from_bytes(data: &[u8]) -> Result<Self, ()> {
+		// TODO: verify the length of the input data is valid
+		let num_textures = i32::from_le_bytes(data[0..4].try_into().map_err(|_| ())?);
+
+		let (chunks, []) = data[4..(4 + 4 * num_textures as usize)].as_chunks::<4>() else {
+			unreachable!()
+		};
+
+		let offsets: Vec<i32> = chunks
+			.iter()
+			.map(|bytes| i32::from_le_bytes(*bytes))
+			.collect();
+
+		let textures: Vec<textures::TexEntry> = offsets
+			.iter()
+			.map(|offset| textures::TexEntry::from_bytes(&data[(*offset as usize)..]))
+			.collect::<Result<_, _>>()
+			.map_err(|_| ())?;
+
+		Ok(Self {
+			num_textures,
+			offsets,
+			textures,
+		})
+	}
+}
+
+pub mod textures {
+	use crate::wad::WadString;
+
+	pub struct TexEntry {
+		pub name: WadString,
+		pub _masked: i32,
+		pub tex_width: i16,
+		pub tex_height: i16,
+		pub _columndirectory: i32,
+		pub num_patches: i16,
+		pub patches: Vec<Patch>,
+	}
+
+	impl TexEntry {
+		pub fn from_bytes(data: &[u8]) -> Result<Self, ()> {
+			let num_patches = i16::from_le_bytes(data[20..22].try_into().map_err(|_| ())?);
+			let patches_slice = &data[22..(22 + Patch::SIZE_BYTES * num_patches as usize)];
+
+			let (chunks, []) = patches_slice.as_chunks::<{ Patch::SIZE_BYTES }>() else {
+				unreachable!()
+			};
+
+			Ok(Self {
+				name: WadString::from_bytes(data[0..8].try_into().map_err(|_| ())?)?,
+				_masked: i32::from_le_bytes(data[8..12].try_into().map_err(|_| ())?),
+				tex_width: i16::from_le_bytes(data[12..14].try_into().map_err(|_| ())?),
+				tex_height: i16::from_le_bytes(data[14..16].try_into().map_err(|_| ())?),
+				_columndirectory: i32::from_le_bytes(data[16..20].try_into().map_err(|_| ())?),
+				num_patches,
+				patches: chunks.iter().map(Patch::from_bytes).collect(),
+			})
+		}
+	}
+
+	pub struct Patch {
+		pub x_offset: i16,
+		pub y_offset: i16,
+		pub pname_index: i16,
+		pub _stepdir: i16,
+		pub _colormap: i16,
+	}
+
+	impl Patch {
+		const SIZE_BYTES: usize = 10;
+
+		pub fn from_bytes(data: &[u8; Self::SIZE_BYTES]) -> Self {
+			Self {
+				x_offset: i16::from_le_bytes(data[0..2].try_into().unwrap()),
+				y_offset: i16::from_le_bytes(data[2..4].try_into().unwrap()),
+				pname_index: i16::from_le_bytes(data[4..6].try_into().unwrap()),
+				_stepdir: i16::from_le_bytes(data[6..8].try_into().unwrap()),
+				_colormap: i16::from_le_bytes(data[8..10].try_into().unwrap()),
+			}
+		}
 	}
 }
 
