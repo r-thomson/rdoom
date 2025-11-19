@@ -1,4 +1,4 @@
-use std::path::Iter;
+use crate::WadString;
 
 pub struct PlaypalLump {
 	pub palettes: Vec<playpal::Palette>,
@@ -196,5 +196,30 @@ mod tests {
 		assert_eq!(color.r, 255);
 		assert_eq!(color.g, 159);
 		assert_eq!(color.b, 67);
+	}
+}
+
+pub struct PnamesLump {
+	pub pnames: Vec<WadString>,
+}
+
+impl PnamesLump {
+	pub fn parse(data: &[u8]) -> Result<Self, ()> {
+		let num_patches = i32::from_le_bytes(data[0..4].try_into().unwrap());
+
+		if data.len() != 4 + (num_patches as usize) * WadString::SIZE_BYTES {
+			return Err(());
+		}
+
+		let (chunks, []) = data[4..].as_chunks::<{ WadString::SIZE_BYTES }>() else {
+			unreachable!()
+		};
+
+		let pnames: Vec<WadString> = chunks
+			.iter()
+			.map(|bytes| WadString::from_bytes(*bytes).unwrap())
+			.collect();
+
+		Ok(Self { pnames })
 	}
 }
