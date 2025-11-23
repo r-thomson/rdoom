@@ -1,4 +1,4 @@
-use crate::lump_parser::{LumpParser, Result};
+use crate::lump_parser::{LumpParser, ParseError, Result};
 use crate::WadString;
 
 pub struct PlaypalLump {
@@ -129,7 +129,7 @@ impl TexturesLump {
 }
 
 pub mod textures {
-	use super::{LumpParser, Result, WadString};
+	use super::{LumpParser, ParseError, Result, WadString};
 
 	pub struct TexEntry {
 		pub name: WadString,
@@ -145,7 +145,8 @@ pub mod textures {
 		pub fn parse(data: &[u8]) -> Result<Self> {
 			let mut parser = LumpParser::new(&data);
 
-			let name = WadString::from_bytes(parser.read_chunk::<8>()?)?;
+			let name = WadString::from_bytes(parser.read_chunk::<8>()?)
+				.map_err(|_| ParseError::InvalidString)?;
 			let _masked = parser.read_i32()?;
 			let tex_width = parser.read_i16()?;
 			let tex_height = parser.read_i16()?;
@@ -207,7 +208,10 @@ impl PnamesLump {
 		let num_patches = parser.read_i32()?;
 
 		let pnames: Vec<WadString> = (0..num_patches)
-			.map(|_| WadString::from_bytes(parser.read_chunk::<8>()?))
+			.map(|_| {
+				WadString::from_bytes(parser.read_chunk::<8>()?)
+					.map_err(|_| ParseError::InvalidString)
+			})
 			.collect::<Result<_>>()?;
 
 		parser.finish()?;

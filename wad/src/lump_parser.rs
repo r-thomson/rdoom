@@ -1,7 +1,18 @@
 use std::result;
+use thiserror::Error;
 
-// TODO: implement an error type
-pub type Result<T> = result::Result<T, ()>;
+#[non_exhaustive]
+#[derive(Debug, Error, PartialEq)]
+pub enum ParseError {
+	#[error("unexpected end of lump")]
+	EndOfLump,
+	#[error("lump contains more bytes than expected")]
+	ExtraBytes,
+	#[error("invalid WAD string")]
+	InvalidString,
+}
+
+pub type Result<T> = result::Result<T, ParseError>;
 
 pub(crate) struct LumpParser<'a> {
 	remaining: &'a [u8],
@@ -16,7 +27,7 @@ impl<'a> LumpParser<'a> {
 	pub fn read_slice(&mut self, n: usize) -> Result<&[u8]> {
 		let Some((chunk, rest)) = self.remaining.split_at_checked(n) else {
 			self.remaining = &[];
-			return Err(());
+			return Err(ParseError::EndOfLump);
 		};
 		self.remaining = rest;
 		Ok(chunk)
@@ -48,7 +59,7 @@ impl<'a> LumpParser<'a> {
 	/// Consumes the parser and returns an error if there are unread bytes.
 	pub fn finish(self) -> Result<()> {
 		if self.has_data_left() {
-			Err(())
+			Err(ParseError::ExtraBytes)
 		} else {
 			Ok(())
 		}
@@ -57,7 +68,7 @@ impl<'a> LumpParser<'a> {
 
 #[cfg(test)]
 mod tests {
-	use super::*; // TODO
+	use super::*;
 
 	#[test]
 	fn read_slice_ok() {
@@ -73,8 +84,8 @@ mod tests {
 		let mut parser = LumpParser::new(b"01234567");
 
 		assert_eq!(parser.read_slice(7).unwrap(), b"0123456");
-		assert!(parser.read_slice(2).is_err());
-		assert!(parser.read_slice(1).is_err());
+		assert_eq!(parser.read_slice(2).unwrap_err(), ParseError::EndOfLump);
+		assert_eq!(parser.read_slice(1).unwrap_err(), ParseError::EndOfLump);
 	}
 
 	#[test]
@@ -91,8 +102,8 @@ mod tests {
 		let mut parser = LumpParser::new(b"01234567");
 
 		assert_eq!(parser.read_chunk::<7>().unwrap(), *b"0123456");
-		assert!(parser.read_chunk::<2>().is_err());
-		assert!(parser.read_chunk::<1>().is_err());
+		assert_eq!(parser.read_chunk::<2>().unwrap_err(), ParseError::EndOfLump);
+		assert_eq!(parser.read_chunk::<1>().unwrap_err(), ParseError::EndOfLump);
 	}
 
 	#[test]
@@ -151,6 +162,6 @@ mod tests {
 		let mut parser = LumpParser::new(b"01234567");
 
 		let _ = parser.read_slice(7);
-		assert!(parser.finish().is_err());
+		assert_eq!(parser.finish().unwrap_err(), ParseError::ExtraBytes);
 	}
 }
