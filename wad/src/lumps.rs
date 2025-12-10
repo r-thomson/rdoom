@@ -1,5 +1,6 @@
-use crate::lump_parser::{LumpParser, ParseError, Result};
 use crate::WadString;
+use crate::lump_parser::{LumpParser, ParseError, Result};
+use crate::lumps::patch::Column;
 
 pub struct PlaypalLump {
 	pub palettes: Vec<playpal::Palette>,
@@ -129,7 +130,7 @@ impl TexturesLump {
 }
 
 pub mod textures {
-	use super::{LumpParser, ParseError, Result, WadString};
+	use super::*;
 
 	pub struct TexEntry {
 		pub name: WadString,
@@ -217,6 +218,85 @@ impl PnamesLump {
 		parser.finish()?;
 
 		Ok(Self { pnames })
+	}
+}
+
+/// Doom's transparency-supporting picture format used for textures, sprites, and HUD graphics.
+pub struct PatchLump {
+	pub width: u16,
+	pub height: u16,
+	pub x_offset: i16,
+	pub y_offset: i16,
+	pub columns: Vec<Column>,
+}
+
+impl PatchLump {
+	pub fn parse(data: &[u8]) -> Result<Self> {
+		let mut parser = LumpParser::new(&data);
+
+		let width = parser.read_u16()?;
+		let height = parser.read_u16()?;
+		let x_offset = parser.read_i16()?;
+		let y_offset = parser.read_i16()?;
+
+		let column_offsets: Vec<u32> = (0..width)
+			.map(|_| parser.read_u32())
+			.collect::<Result<_>>()?;
+
+		let columns = column_offsets
+			.into_iter()
+			.map(|offset| &data[offset as usize..])
+			.map(patch::Column::parse)
+			.collect::<Result<_>>()?;
+
+		Ok(Self {
+			width,
+			height,
+			x_offset,
+			y_offset,
+			columns,
+		})
+	}
+}
+
+pub mod patch {
+	use super::*;
+
+	pub struct Column {
+		pub posts: Vec<Post>,
+	}
+
+	impl Column {
+		pub fn parse(data: &[u8]) -> Result<Self> {
+			let mut parser = LumpParser::new(&data);
+			let mut posts = Vec::new();
+
+			loop {
+				// The column ends when the next post starts with 0xff
+				let y_offset = parser.read_u8()?;
+				if y_offset == 0xff {
+					break;
+				}
+
+				let length: usize = parser.read_u8()?.into();
+
+				parser.read_padding(1)?;
+
+				posts.push(patch::Post {
+					y_offset,
+					data: parser.read_slice(length)?.to_vec(),
+				});
+
+				parser.read_padding(1)?;
+			}
+
+			Ok(patch::Column { posts })
+		}
+	}
+
+	pub struct Post {
+		pub y_offset: u8,
+		pub data: Vec<u8>,
 	}
 }
 
