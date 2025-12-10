@@ -1,6 +1,5 @@
 use crate::WadString;
 use crate::lump_parser::{LumpParser, ParseError, Result};
-use crate::lumps::patch::Column;
 
 pub struct PlaypalLump {
 	pub palettes: Vec<playpal::Palette>,
@@ -227,7 +226,7 @@ pub struct PatchLump {
 	pub height: u16,
 	pub x_offset: i16,
 	pub y_offset: i16,
-	pub columns: Vec<Column>,
+	pub columns: Vec<patch::Column>,
 }
 
 impl PatchLump {
