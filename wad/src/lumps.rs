@@ -300,6 +300,21 @@ pub mod patch {
 	}
 }
 
+/// Doom's flat (floor) graphic format.
+pub struct FlatLump {
+	pub data: [u8; 4096],
+}
+
+impl FlatLump {
+	pub fn parse(data: &[u8]) -> Result<Self> {
+		let mut parser = LumpParser::new(&data);
+		let data = parser.read_chunk::<4096>()?;
+		parser.finish()?;
+
+		Ok(FlatLump { data })
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
