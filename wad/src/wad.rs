@@ -1,8 +1,10 @@
 use std::any::type_name;
 use std::fmt;
 use std::fs::File;
-use std::io::prelude::*;
 use std::io::SeekFrom;
+use std::io::prelude::*;
+
+use crate::lump_parser::ParseError;
 
 /// Where's All the Data?
 #[derive(Debug)]
@@ -92,7 +94,7 @@ impl WadDirectoryEntry {
 		Ok(WadDirectoryEntry {
 			offset_bytes: i32::from_le_bytes(data[0..4].try_into().unwrap()),
 			size_bytes: i32::from_le_bytes(data[4..8].try_into().unwrap()),
-			lump_name: WadString::from_bytes(data[8..16].try_into().unwrap())?,
+			lump_name: WadString::from_bytes(data[8..16].try_into().unwrap()).map_err(|_| ())?,
 		})
 	}
 
@@ -130,10 +132,10 @@ pub struct WadString {
 impl WadString {
 	pub const SIZE_BYTES: usize = 8;
 
-	pub fn from_bytes(bytes: [u8; Self::SIZE_BYTES]) -> Result<WadString, ()> {
+	pub fn from_bytes(bytes: [u8; Self::SIZE_BYTES]) -> Result<WadString, ParseError> {
 		// Check for non-ASCII characters
 		if bytes.iter().any(|byte| *byte > 127) {
-			return Err(());
+			return Err(ParseError::InvalidString);
 		}
 
 		Ok(WadString { bytes })
