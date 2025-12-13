@@ -3,6 +3,7 @@ use crate::WadString;
 use crate::lump_parser::{LumpParser, Result};
 
 pub use linedefs::LinedefsLump;
+pub use sectors::SectorsLump;
 pub use sidedefs::SidedefsLump;
 pub use things::ThingsLump;
 pub use vertexes::VertexesLump;
@@ -177,7 +178,50 @@ pub mod subsectors {}
 
 pub mod nodes {}
 
-pub mod sectors {}
+pub mod sectors {
+	use super::*;
+
+	#[derive(Debug, PartialEq)]
+	pub struct SectorsLump {
+		pub sectors: Vec<Sector>,
+	}
+
+	impl Lump for SectorsLump {
+		fn parse(data: &[u8]) -> Result<Self> {
+			let mut parser = LumpParser::new(data);
+			let mut sectors = Vec::with_capacity(data.len() / Sector::SIZE);
+
+			while parser.has_data_left() {
+				sectors.push(Sector {
+					floor_height: parser.read_i16()?,
+					ceiling_height: parser.read_i16()?,
+					floor_flat: WadString::from_bytes(parser.read_chunk::<8>()?)?,
+					ceiling_flat: WadString::from_bytes(parser.read_chunk::<8>()?)?,
+					light_level: parser.read_i16()?,
+					special: parser.read_i16()?,
+					tag: parser.read_i16()?,
+				});
+			}
+
+			Ok(Self { sectors })
+		}
+	}
+
+	#[derive(Debug, PartialEq)]
+	pub struct Sector {
+		pub floor_height: i16,
+		pub ceiling_height: i16,
+		pub floor_flat: WadString,
+		pub ceiling_flat: WadString,
+		pub light_level: i16,
+		pub special: i16,
+		pub tag: i16,
+	}
+
+	impl Sector {
+		pub const SIZE: usize = 26;
+	}
+}
 
 pub mod reject {}
 
