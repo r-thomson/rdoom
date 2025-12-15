@@ -1,10 +1,7 @@
-use std::any::type_name;
-use std::fmt;
+use crate::WadString;
 use std::fs::File;
 use std::io::SeekFrom;
 use std::io::prelude::*;
-
-use crate::lump_parser::ParseError;
 
 /// Where's All the Data?
 #[derive(Debug)]
@@ -116,52 +113,6 @@ impl WadDirectoryEntry {
 	}
 }
 
-/// The string format used for the name of lumps. It is an 8-byte-long ASCII
-/// string, right-padded with null bytes.
-///
-/// ```
-/// # use wad::WadString;
-/// let wad_str = WadString::from_bytes(*b"PLAYPAL\0").unwrap();
-/// assert_eq!(wad_str.to_string(), "PLAYPAL");
-/// ```
-#[derive(Debug, PartialEq)]
-pub struct WadString {
-	bytes: [u8; 8],
-}
-
-impl WadString {
-	pub const SIZE_BYTES: usize = 8;
-
-	pub fn from_bytes(bytes: [u8; Self::SIZE_BYTES]) -> Result<WadString, ParseError> {
-		// Check for non-ASCII characters
-		if bytes.iter().any(|byte| *byte > 127) {
-			return Err(ParseError::InvalidString);
-		}
-
-		Ok(WadString { bytes })
-	}
-}
-
-impl fmt::Display for WadString {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		self.bytes
-			.iter()
-			.map_while(|byte| match byte {
-				0 => None, // end of string
-				1..=127 => Some(*byte as char),
-				_ => panic!("Invalid (non-ASCII) character in {}", type_name::<Self>()),
-			})
-			.collect::<String>()
-			.fmt(f)
-	}
-}
-
-impl PartialEq<&str> for WadString {
-	fn eq(&self, other: &&str) -> bool {
-		self.to_string() == *other
-	}
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -224,24 +175,5 @@ mod tests {
 			lump_name: WadString::from_bytes(*b"S_START\0").unwrap(),
 		};
 		assert!(virtual_entry.is_virtual());
-	}
-
-	#[test]
-	fn wad_string_from_bytes_returns_ok() {
-		WadString::from_bytes(*b"MYSTRING").unwrap();
-	}
-
-	#[test]
-	fn wad_string_from_bytes_returns_err_on_invalid_ascii() {
-		WadString::from_bytes(*b"INVALID\x80").unwrap_err();
-	}
-
-	#[test]
-	fn wad_string_display() {
-		let wad_str = WadString::from_bytes(*b"COLORMAP").unwrap();
-		assert_eq!(format!("{}", wad_str), "COLORMAP");
-
-		let wad_str = WadString::from_bytes(*b"DEMO1\0\0\0").unwrap();
-		assert_eq!(format!("{}", wad_str), "DEMO1");
 	}
 }
