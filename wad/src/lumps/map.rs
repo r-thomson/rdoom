@@ -19,10 +19,10 @@ pub mod things {
 	impl Lump for ThingsLump {
 		fn parse(data: &[u8]) -> Result<Self> {
 			let mut parser = LumpParser::new(&data);
-			let mut things = Vec::with_capacity(data.len() / linedefs::Linedef::SIZE);
+			let mut things = Vec::with_capacity(data.len() / Thing::SIZE);
 
 			while parser.has_data_left() {
-				things.push(things::Thing {
+				things.push(Thing {
 					x_pos: parser.read_i16()?,
 					y_pos: parser.read_i16()?,
 					angle: parser.read_i16()?,
@@ -54,16 +54,16 @@ pub mod linedefs {
 
 	#[derive(Debug, PartialEq)]
 	pub struct LinedefsLump {
-		pub linedefs: Vec<linedefs::Linedef>,
+		pub linedefs: Vec<Linedef>,
 	}
 
 	impl Lump for LinedefsLump {
 		fn parse(data: &[u8]) -> Result<Self> {
 			let mut parser = LumpParser::new(&data);
-			let mut linedefs = Vec::with_capacity(data.len() / linedefs::Linedef::SIZE);
+			let mut linedefs = Vec::with_capacity(data.len() / Linedef::SIZE);
 
 			while parser.has_data_left() {
-				linedefs.push(linedefs::Linedef {
+				linedefs.push(Linedef {
 					vertex_1: parser.read_i16()?,
 					vertex_2: parser.read_i16()?,
 					flags: parser.read_i16()?,
@@ -99,16 +99,16 @@ pub mod sidedefs {
 
 	#[derive(Debug, PartialEq)]
 	pub struct SidedefsLump {
-		pub sidedefs: Vec<sidedefs::Sidedef>,
+		pub sidedefs: Vec<Sidedef>,
 	}
 
 	impl Lump for SidedefsLump {
 		fn parse(data: &[u8]) -> Result<Self> {
 			let mut parser = LumpParser::new(&data);
-			let mut sidedefs = Vec::with_capacity(data.len() / sidedefs::Sidedef::SIZE);
+			let mut sidedefs = Vec::with_capacity(data.len() / Sidedef::SIZE);
 
 			while parser.has_data_left() {
-				sidedefs.push(sidedefs::Sidedef {
+				sidedefs.push(Sidedef {
 					x_offset: parser.read_i16()?,
 					y_offset: parser.read_i16()?,
 					upper_tex: WadString::from_bytes(parser.read_chunk()?)?,
@@ -142,19 +142,19 @@ pub mod vertexes {
 
 	#[derive(Debug, PartialEq)]
 	pub struct VertexesLump {
-		pub vertexes: Vec<vertexes::Vertex>,
+		pub vertexes: Vec<Vertex>,
 	}
 
 	impl Lump for VertexesLump {
 		fn parse(data: &[u8]) -> Result<Self> {
 			let mut parser = LumpParser::new(&data);
-			let mut vertexes = Vec::with_capacity(data.len() / vertexes::Vertex::SIZE);
+			let mut vertexes = Vec::with_capacity(data.len() / Vertex::SIZE);
 
 			while parser.has_data_left() {
 				let x = parser.read_i16()?;
 				let y = parser.read_i16()?;
 
-				vertexes.push(vertexes::Vertex { x, y });
+				vertexes.push(Vertex { x, y });
 			}
 
 			Ok(Self { vertexes })
@@ -171,12 +171,6 @@ pub mod vertexes {
 		pub const SIZE: usize = 4;
 	}
 }
-
-pub mod segs {}
-
-pub mod subsectors {}
-
-pub mod nodes {}
 
 pub mod sectors {
 	use super::*;
@@ -222,7 +216,3 @@ pub mod sectors {
 		pub const SIZE: usize = 26;
 	}
 }
-
-pub mod reject {}
-
-pub mod blockmap {}
