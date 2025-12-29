@@ -1,41 +1,37 @@
 use crate::WadString;
-use std::fs::File;
 use std::io::SeekFrom;
 use std::io::prelude::*;
 
 /// Where's All the Data?
 #[derive(Debug)]
 pub struct Wad {
-	file: File,
 	pub header: WadHeader,
 	pub directory: Vec<WadDirectoryEntry>,
 }
 
 impl Wad {
-	pub fn new(mut file: File) -> Result<Self, ()> {
-		let mut header_buf = [0; WadHeader::SIZE_BYTES];
-		file.seek(SeekFrom::Start(0))
-			.and_then(|_| file.read_exact(&mut header_buf))
+	pub fn new<T: Read + Seek>(reader: &mut T) -> Result<Self, ()> {
+		let mut header_buf = [0; WadHeader::SIZE];
+		reader
+			.seek(SeekFrom::Start(0))
+			.and_then(|_| reader.read_exact(&mut header_buf))
 			.map_err(|_| ())?;
 
 		let header = WadHeader::from_bytes(header_buf)?;
 
-		let mut directory_buf = vec![0; header.num_lumps as usize * WadDirectoryEntry::SIZE_BYTES];
-		file.seek(SeekFrom::Start(header.directory_offset_bytes as u64))
-			.and_then(|_| file.read_exact(&mut directory_buf))
+		let mut directory_buf = vec![0; header.num_lumps as usize * WadDirectoryEntry::SIZE];
+		reader
+			.seek(SeekFrom::Start(header.directory_offset_bytes as u64))
+			.and_then(|_| reader.read_exact(&mut directory_buf))
 			.map_err(|_| ())?;
 
 		let directory: Vec<WadDirectoryEntry> = directory_buf
-			.chunks(WadDirectoryEntry::SIZE_BYTES)
+			.chunks(WadDirectoryEntry::SIZE)
 			.map(|chunk| chunk.try_into().unwrap())
 			.map(WadDirectoryEntry::from_bytes)
 			.collect::<Result<_, _>>()?;
 
-		Ok(Wad {
-			file,
-			header,
-			directory,
-		})
+		Ok(Wad { header, directory })
 	}
 }
 
@@ -47,7 +43,7 @@ pub struct WadHeader {
 }
 
 impl WadHeader {
-	pub const SIZE_BYTES: usize = 12;
+	pub const SIZE: usize = 12;
 
 	fn from_bytes(data: [u8; 12]) -> Result<Self, ()> {
 		Ok(WadHeader {
@@ -58,7 +54,6 @@ impl WadHeader {
 	}
 }
 
-/// Either IWAD or PWAD
 #[derive(Debug, Eq, PartialEq)]
 pub enum WadType {
 	IWAD,
@@ -66,9 +61,9 @@ pub enum WadType {
 }
 
 impl WadType {
-	pub const SIZE_BYTES: usize = 4;
+	pub const SIZE: usize = 4;
 
-	pub fn new(from_bytes: [u8; Self::SIZE_BYTES]) -> Result<Self, ()> {
+	pub fn new(from_bytes: [u8; Self::SIZE]) -> Result<Self, ()> {
 		match &from_bytes {
 			b"IWAD" => Ok(Self::IWAD),
 			b"PWAD" => Ok(Self::PWAD),
@@ -85,9 +80,9 @@ pub struct WadDirectoryEntry {
 }
 
 impl WadDirectoryEntry {
-	pub const SIZE_BYTES: usize = 16;
+	pub const SIZE: usize = 16;
 
-	pub fn from_bytes(data: [u8; Self::SIZE_BYTES]) -> Result<Self, ()> {
+	pub fn from_bytes(data: [u8; Self::SIZE]) -> Result<Self, ()> {
 		Ok(WadDirectoryEntry {
 			offset_bytes: i32::from_le_bytes(data[0..4].try_into().unwrap()),
 			size_bytes: i32::from_le_bytes(data[4..8].try_into().unwrap()),
@@ -95,21 +90,15 @@ impl WadDirectoryEntry {
 		})
 	}
 
-	/// Virtual lumps have a size of zero and only appear in the directory
 	pub fn is_virtual(&self) -> bool {
 		self.size_bytes == 0
 	}
 
-	/// Read the contents of a lump into a buffer. The buffer's size must equal `size_bytes`.
-	pub fn read_lump(&self, buf: &mut [u8], wadfile: &Wad) -> std::io::Result<()> {
+	pub fn read_lump<T: Read + Seek>(&self, reader: &mut T, buf: &mut [u8]) -> std::io::Result<()> {
 		assert!(buf.len() == self.size_bytes as usize);
 
-		let mut file = &wadfile.file;
-
-		file.seek(SeekFrom::Start(self.offset_bytes as u64))?;
-		file.read_exact(buf)?;
-
-		Ok(())
+		reader.seek(SeekFrom::Start(self.offset_bytes as u64))?;
+		reader.read_exact(buf)
 	}
 }
 
