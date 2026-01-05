@@ -1,6 +1,8 @@
 use crate::WadString;
+use std::io;
 use std::io::SeekFrom;
 use std::io::prelude::*;
+use thiserror::Error;
 
 /// Where's All the Data?
 #[derive(Debug)]
@@ -10,12 +12,12 @@ pub struct Wad {
 }
 
 impl Wad {
-	pub fn new<T: Read + Seek>(reader: &mut T) -> Result<Self, ()> {
+	pub fn new<T: Read + Seek>(reader: &mut T) -> Result<Self, WadError> {
 		let mut header_buf = [0; WadHeader::SIZE];
 		reader
 			.seek(SeekFrom::Start(0))
 			.and_then(|_| reader.read_exact(&mut header_buf))
-			.map_err(|_| ())?;
+			.map_err(WadError::IoError)?;
 
 		let header = WadHeader::from_bytes(header_buf)?;
 
@@ -23,7 +25,7 @@ impl Wad {
 		reader
 			.seek(SeekFrom::Start(header.directory_offset_bytes as u64))
 			.and_then(|_| reader.read_exact(&mut directory_buf))
-			.map_err(|_| ())?;
+			.map_err(WadError::IoError)?;
 
 		let directory: Vec<WadDirectoryEntry> = directory_buf
 			.chunks(WadDirectoryEntry::SIZE)
@@ -45,7 +47,7 @@ pub struct WadHeader {
 impl WadHeader {
 	pub const SIZE: usize = 12;
 
-	fn from_bytes(data: [u8; 12]) -> Result<Self, ()> {
+	fn from_bytes(data: [u8; 12]) -> Result<Self, WadError> {
 		Ok(WadHeader {
 			iwad_or_pwad: WadType::new(data[0..4].try_into().unwrap())?,
 			num_lumps: i32::from_le_bytes(data[4..8].try_into().unwrap()),
@@ -63,11 +65,11 @@ pub enum WadType {
 impl WadType {
 	pub const SIZE: usize = 4;
 
-	pub fn new(from_bytes: [u8; Self::SIZE]) -> Result<Self, ()> {
+	pub fn new(from_bytes: [u8; Self::SIZE]) -> Result<Self, WadError> {
 		match &from_bytes {
 			b"IWAD" => Ok(Self::IWAD),
 			b"PWAD" => Ok(Self::PWAD),
-			_ => Err(()),
+			_ => Err(WadError::NotWadFile),
 		}
 	}
 }
@@ -82,11 +84,12 @@ pub struct WadDirectoryEntry {
 impl WadDirectoryEntry {
 	pub const SIZE: usize = 16;
 
-	pub fn from_bytes(data: [u8; Self::SIZE]) -> Result<Self, ()> {
+	pub fn from_bytes(data: [u8; Self::SIZE]) -> Result<Self, WadError> {
 		Ok(WadDirectoryEntry {
 			offset_bytes: i32::from_le_bytes(data[0..4].try_into().unwrap()),
 			size_bytes: i32::from_le_bytes(data[4..8].try_into().unwrap()),
-			lump_name: WadString::from_bytes(data[8..16].try_into().unwrap()).map_err(|_| ())?,
+			lump_name: WadString::from_bytes(data[8..16].try_into().unwrap())
+				.map_err(|_| WadError::InvalidString)?,
 		})
 	}
 
@@ -100,6 +103,17 @@ impl WadDirectoryEntry {
 		reader.seek(SeekFrom::Start(self.offset_bytes as u64))?;
 		reader.read_exact(buf)
 	}
+}
+
+#[non_exhaustive]
+#[derive(Debug, Error)]
+pub enum WadError {
+	#[error("must start with either 'IWAD' or 'PWAD'")]
+	NotWadFile,
+	#[error("invalid WAD string")]
+	InvalidString,
+	#[error("I/O error: {0}")]
+	IoError(io::Error),
 }
 
 #[cfg(test)]
