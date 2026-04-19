@@ -68,9 +68,15 @@ impl PartialEq<&str> for WadString {
 }
 
 /// Shortcut for initializing a `WadString` from a string literal.
+///
+/// ```
+/// # use wad::wad_string;
+/// let wad_str = wad_string!("COLORMAP");
+/// assert_eq!(wad_str.to_string(), "COLORMAP");
+/// ```
 #[macro_export]
 macro_rules! wad_string {
-	($lit:literal) => {{ WadString::from_str($lit).unwrap() }};
+	($lit:literal) => {{ <$crate::WadString as ::core::str::FromStr>::from_str($lit).unwrap() }};
 }
 
 #[cfg(test)]
