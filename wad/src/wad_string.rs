@@ -1,7 +1,7 @@
-use crate::lump_parser::ParseError;
 use std::any::type_name;
 use std::fmt;
 use std::str::FromStr;
+use thiserror::Error;
 
 /// The string format used for the name of lumps. It is an 8-byte-long ASCII
 /// string, right-padded with null bytes.
@@ -17,9 +17,9 @@ pub struct WadString {
 }
 
 impl WadString {
-	pub fn from_bytes(bytes: [u8; 8]) -> Result<Self, ParseError> {
+	pub fn from_bytes(bytes: [u8; 8]) -> Result<Self, WadStringError> {
 		if bytes.iter().any(|byte| !byte.is_ascii()) {
-			return Err(ParseError::InvalidString);
+			return Err(WadStringError::NonAsciiChars);
 		}
 
 		Ok(Self { bytes })
@@ -27,17 +27,17 @@ impl WadString {
 }
 
 impl FromStr for WadString {
-	type Err = ParseError;
+	type Err = WadStringError;
 
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
 		// This is safe because we will check that each character is ASCII
 		let s = s.as_bytes();
 
 		if s.len() > 8 {
-			return Err(ParseError::InvalidString);
+			return Err(WadStringError::TooLong);
 		}
 		if s.iter().any(|byte| !byte.is_ascii()) {
-			return Err(ParseError::InvalidString);
+			return Err(WadStringError::NonAsciiChars);
 		}
 
 		let mut bytes = [0u8; 8];
@@ -65,6 +65,15 @@ impl PartialEq<&str> for WadString {
 	fn eq(&self, other: &&str) -> bool {
 		self.to_string() == *other
 	}
+}
+
+#[non_exhaustive]
+#[derive(Debug, Error, PartialEq)]
+pub enum WadStringError {
+	#[error("non-ASCII character in string")]
+	NonAsciiChars,
+	#[error("string is longer than 8 characters")]
+	TooLong,
 }
 
 /// Shortcut for initializing a `WadString` from a string literal.

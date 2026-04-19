@@ -1,6 +1,6 @@
 use super::Lump;
 use crate::WadString;
-use crate::lump_parser::{LumpParser, Result};
+use crate::lump_parser::{LumpParser, ParseError, Result};
 
 pub use linedefs::LinedefsLump;
 pub use sectors::SectorsLump;
@@ -111,9 +111,12 @@ pub mod sidedefs {
 				sidedefs.push(Sidedef {
 					x_offset: parser.read_i16()?,
 					y_offset: parser.read_i16()?,
-					upper_tex: WadString::from_bytes(parser.read_chunk()?)?,
-					mid_tex: WadString::from_bytes(parser.read_chunk()?)?,
-					lower_tex: WadString::from_bytes(parser.read_chunk()?)?,
+					upper_tex: WadString::from_bytes(parser.read_chunk()?)
+						.map_err(ParseError::InvalidString)?,
+					mid_tex: WadString::from_bytes(parser.read_chunk()?)
+						.map_err(ParseError::InvalidString)?,
+					lower_tex: WadString::from_bytes(parser.read_chunk()?)
+						.map_err(ParseError::InvalidString)?,
 					sector: parser.read_i16()?,
 				});
 			}
@@ -189,8 +192,10 @@ pub mod sectors {
 				sectors.push(Sector {
 					floor_height: parser.read_i16()?,
 					ceiling_height: parser.read_i16()?,
-					floor_flat: WadString::from_bytes(parser.read_chunk::<8>()?)?,
-					ceiling_flat: WadString::from_bytes(parser.read_chunk::<8>()?)?,
+					floor_flat: WadString::from_bytes(parser.read_chunk::<8>()?)
+						.map_err(ParseError::InvalidString)?,
+					ceiling_flat: WadString::from_bytes(parser.read_chunk::<8>()?)
+						.map_err(ParseError::InvalidString)?,
 					light_level: parser.read_i16()?,
 					special: parser.read_i16()?,
 					tag: parser.read_i16()?,

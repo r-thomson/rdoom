@@ -1,3 +1,4 @@
+use crate::WadStringError;
 use std::result;
 use thiserror::Error;
 
@@ -9,7 +10,7 @@ pub enum ParseError {
 	#[error("lump contains more bytes than expected")]
 	ExtraBytes,
 	#[error("invalid WAD string")]
-	InvalidString,
+	InvalidString(WadStringError),
 }
 
 pub type Result<T> = result::Result<T, ParseError>;
