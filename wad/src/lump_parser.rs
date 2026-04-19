@@ -1,4 +1,4 @@
-use crate::WadStringError;
+use crate::{WadString, WadStringError};
 use std::result;
 use thiserror::Error;
 
@@ -80,6 +80,11 @@ impl<'a> LumpParser<'a> {
 		Ok(u32::from_le_bytes(bytes))
 	}
 
+	/// Takes the next 8 bytes as a `WadString`.
+	pub fn read_string(&mut self) -> Result<WadString> {
+		return WadString::from_bytes(self.read_chunk()?).map_err(ParseError::InvalidString);
+	}
+
 	/// Checks if there are unread bytes remaining.
 	pub fn has_data_left(&self) -> bool {
 		!self.remaining.is_empty()
@@ -97,6 +102,8 @@ impl<'a> LumpParser<'a> {
 
 #[cfg(test)]
 mod tests {
+	use crate::wad_string;
+
 	use super::*;
 
 	#[test]
@@ -231,6 +238,20 @@ mod tests {
 		assert_eq!(parser.read_u32().unwrap(), 42);
 		assert_eq!(parser.read_u32().unwrap(), u32::MAX);
 		assert_eq!(parser.read_u32().unwrap_err(), ParseError::EndOfLump);
+	}
+
+	#[test]
+	fn read_string() {
+		let data = [*b"COLORMAP", *b"PLAYPAL\0", *b"INVALID\x80"].concat();
+		let mut parser = LumpParser::new(&data);
+
+		assert_eq!(parser.read_string().unwrap(), wad_string!("COLORMAP"));
+		assert_eq!(parser.read_string().unwrap(), wad_string!("PLAYPAL"));
+		assert_eq!(
+			parser.read_string().unwrap_err(),
+			ParseError::InvalidString(WadStringError::NonAsciiChars)
+		);
+		assert_eq!(parser.read_string().unwrap_err(), ParseError::EndOfLump);
 	}
 
 	#[test]

@@ -1,6 +1,6 @@
 use super::Lump;
 use crate::WadString;
-use crate::lump_parser::{LumpParser, ParseError, Result};
+use crate::lump_parser::{LumpParser, Result};
 
 pub use colormap::ColormapLump;
 pub use flat::FlatLump;
@@ -165,8 +165,7 @@ pub mod textures {
 		pub fn parse(data: &[u8]) -> Result<Self> {
 			let mut parser = LumpParser::new(&data);
 
-			let name = WadString::from_bytes(parser.read_chunk::<8>()?)
-				.map_err(ParseError::InvalidString)?;
+			let name = parser.read_string()?;
 			let _masked = parser.read_i32()?;
 			let tex_width = parser.read_i16()?;
 			let tex_height = parser.read_i16()?;
@@ -233,10 +232,7 @@ pub mod pnames {
 			let num_patches = parser.read_i32()?;
 
 			let pnames: Vec<WadString> = (0..num_patches)
-				.map(|_| {
-					WadString::from_bytes(parser.read_chunk::<8>()?)
-						.map_err(ParseError::InvalidString)
-				})
+				.map(|_| parser.read_string())
 				.collect::<Result<_>>()?;
 
 			parser.finish()?;
