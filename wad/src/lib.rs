@@ -3,6 +3,7 @@ pub mod lumps;
 mod wad;
 mod wad_string;
 
+pub use lump_parser::ParseError;
 pub use lumps::Lump;
 pub use wad::*;
 pub use wad_string::*;
